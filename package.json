@@ -1,5 +1,5 @@
 {
-  "name": "@zerodrop/client",
+  "name": "zerodrop-client",
   "version": "0.1.0",
   "description": "Instant temporary email inboxes for CI pipelines and QA testing",
   "main": "dist/index.js",
