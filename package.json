@@ -4,23 +4,12 @@
   "description": "Instant temporary email inboxes for CI pipelines and QA testing",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
+  "files": ["dist", "README.md"],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch"
   },
-  "keywords": [
-    "email",
-    "testing",
-    "ci",
-    "playwright",
-    "cypress",
-    "qa",
-    "temporary-email",
-    "sandbox"
-  ],
+  "keywords": ["email", "testing", "ci", "playwright", "cypress", "qa", "temporary-email", "sandbox"],
   "author": "ZeroDrop",
   "license": "MIT",
   "devDependencies": {
