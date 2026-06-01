@@ -4,25 +4,21 @@
   "description": "Instant temporary email inboxes for CI pipelines and QA testing",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": [
-    "dist",
-    "README.md"
-  ],
+  "files": ["dist", "README.md"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zerodrop-dev/zerodrop-sdk.git"
+  },
+  "homepage": "https://zerodrop.dev",
+  "bugs": {
+    "url": "https://github.com/zerodrop-dev/zerodrop-sdk/issues"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch"
   },
-  "keywords": [
-    "email",
-    "testing",
-    "ci",
-    "playwright",
-    "cypress",
-    "qa",
-    "temporary-email",
-    "sandbox"
-  ],
-  "author": "ZeroDrop",
+  "keywords": ["email", "testing", "ci", "playwright", "cypress", "qa", "temporary-email", "sandbox"],
+  "author": "ZeroDrop <hello@zerodrop.dev>",
   "license": "MIT",
   "devDependencies": {
     "typescript": "^6.0.3"
