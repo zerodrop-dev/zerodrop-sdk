@@ -45,6 +45,33 @@ test('password reset flow', async ({ page }) => {
   await page.goto(resetLink);
 });
 ```
+## Parallel CI Runs
+
+Inbox generation is client-side — no API call, no throttling. 
+50 parallel tests generate 50 inboxes instantly.
+
+```javascript
+// Safe to run in parallel — generateInbox() is local
+const inboxes = Array.from({ length: 50 }, () => mail.generateInbox());
+```
+
+The rate limit applies to the polling endpoint — 20 requests 
+per 10 seconds per IP on the free tier. For heavy parallel 
+usage, stagger `waitForLatest()` calls slightly:
+
+```javascript
+// Stagger polls to avoid burst on shared IP
+const results = await Promise.all(
+  inboxes.map((inbox, i) =>
+    new Promise(resolve => setTimeout(resolve, i * 100))
+      .then(() => mail.waitForLatest(inbox, { timeout: 15000 }))
+  )
+);
+```
+
+For CI pipelines with 20+ parallel tests, use a Workspace 
+API key — dedicated rate limit bucket, not shared with 
+the public pool.
 
 ## Webhook Mode (Staging Servers)
 
