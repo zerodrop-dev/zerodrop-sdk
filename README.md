@@ -1,4 +1,7 @@
+
 # zerodrop-client
+
+![ZeroDrop Demo](https://github.com/user-attachments/assets/739602b7-27bc-48c4-a837-5e75cec20b29)
 
 Instant temporary email inboxes for testing auth flows, CI pipelines, and QA automation.
 
