@@ -91,7 +91,7 @@ class ZeroDrop {
         if (this.apiKey) {
             headers["Authorization"] = `Bearer ${this.apiKey}`;
         }
-        const res = await fetch(`${this.baseUrl}/api/inbox/${inboxName}`, { headers });
+        const res = await fetch(`${this.baseUrl}/api/inbox/${inboxName}?source=sdk`, { headers });
         if (res.status === 401)
             throw new ZeroDropAuthError();
         if (!res.ok) {

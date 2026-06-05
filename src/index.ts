@@ -135,7 +135,7 @@ export class ZeroDrop {
     }
 
     const res = await fetch(
-      `${this.baseUrl}/api/inbox/${inboxName}`,
+      `${this.baseUrl}/api/inbox/${inboxName}?source=sdk`,
       { headers }
     );
 
