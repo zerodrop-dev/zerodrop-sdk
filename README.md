@@ -16,6 +16,14 @@ No signup. No configuration. Works in 4 lines.
 npm install zerodrop-client
 ```
 
+## Test Isolation
+
+Every inbox is isolated by default. `generateInbox()` returns a unique address on every call — no shared state, no pools, no configuration needed.
+
+Zero cross-test contamination. Every test run gets a cryptographically isolated inbox that expires automatically after 30 minutes.
+
+This means parallel CI builds work out of the box — 10 workers, 10 inboxes, zero race conditions.
+
 ## Zero-Auth Mode (Local Development)
 
 ```javascript
@@ -51,9 +59,10 @@ test('password reset flow', async ({ page }) => {
   await page.goto(resetLink);
 });
 ```
+
 ## Parallel CI Runs
 
-Inbox generation is client-side — no API call, no throttling. 
+Inbox generation is client-side — no API call, no throttling.
 50 parallel tests generate 50 inboxes instantly.
 
 ```javascript
@@ -61,8 +70,8 @@ Inbox generation is client-side — no API call, no throttling.
 const inboxes = Array.from({ length: 50 }, () => mail.generateInbox());
 ```
 
-The rate limit applies to the polling endpoint — 20 requests 
-per 10 seconds per IP on the free tier. For heavy parallel 
+The rate limit applies to the polling endpoint — 20 requests
+per 10 seconds per IP on the free tier. For heavy parallel
 usage, stagger `waitForLatest()` calls slightly:
 
 ```javascript
@@ -75,8 +84,8 @@ const results = await Promise.all(
 );
 ```
 
-For CI pipelines with 20+ parallel tests, use a Workspace 
-API key — dedicated rate limit bucket, not shared with 
+For CI pipelines with 20+ parallel tests, use a Workspace
+API key — dedicated rate limit bucket, not shared with
 the public pool.
 
 ## Webhook Mode (Staging Servers)
