@@ -1,10 +1,4 @@
-
 # zerodrop-client
-
-![npm version](https://img.shields.io/npm/v/zerodrop-client)
-![npm downloads](https://img.shields.io/npm/dw/zerodrop-client)
-
-![ZeroDrop Demo](https://github.com/user-attachments/assets/739602b7-27bc-48c4-a837-5e75cec20b29)
 
 Instant temporary email inboxes for testing auth flows, CI pipelines, and QA automation.
 
@@ -34,8 +28,9 @@ const inbox = mail.generateInbox();
 // → "swift-x7k29@zerodrop-sandbox.online"
 
 const email = await mail.waitForLatest(inbox, { timeout: 10000 });
-console.log(email.subject); // "Reset your password"
-console.log(email.body);    // "Click here to reset..."
+console.log(email.subject);   // "Reset your password"
+console.log(email.otp);       // "123456" — auto-extracted, no regex needed
+console.log(email.magicLink); // "https://..." — auto-extracted verification link
 ```
 
 ## CI Pipeline Mode (Playwright / Cypress)
@@ -55,10 +50,27 @@ test('password reset flow', async ({ page }) => {
   const email = await mail.waitForLatest(inbox, { timeout: 15000 });
   expect(email.subject).toContain('Reset your password');
 
-  const resetLink = email.body.match(/https?:\/\/[^\s]+/)[0];
-  await page.goto(resetLink);
+  // No regex — magicLink is auto-extracted at the edge
+  await page.goto(email.magicLink);
 });
 ```
+
+## OTP Auto-Extraction
+
+ZeroDrop extracts OTP codes and magic links at the edge before emails reach your test suite. No regex required.
+
+```javascript
+const email = await mail.waitForLatest(inbox);
+
+// Auto-extracted fields
+email.otp        // "123456" — 4-8 digit verification code
+email.magicLink  // "https://app.com/verify?token=abc" — verification/reset link
+
+// Raw body still available if you need it
+email.body       // Full plain-text body
+```
+
+Both fields are `null` if not detected in the email.
 
 ## Parallel CI Runs
 
@@ -128,6 +140,8 @@ interface ZeroDropEmail {
   body: string;
   rawBody: string;
   receivedAt: Date;
+  otp: string | null;        // Auto-extracted OTP code (4-8 digits)
+  magicLink: string | null;  // Auto-extracted verification/reset link
 }
 ```
 
@@ -150,6 +164,8 @@ try {
 | | Free | Workspace |
 |---|---|---|
 | Inbox generation | ✓ | ✓ |
+| OTP auto-extraction | ✓ | ✓ |
+| Magic link extraction | ✓ | ✓ |
 | Email retention | 30 min | 7 days |
 | Custom domains | ✗ | ✓ |
 | API key | ✗ | ✓ |
