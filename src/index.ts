@@ -19,6 +19,8 @@ export interface ZeroDropEmail {
   body: string;
   rawBody: string;
   receivedAt: Date;
+  otp: string | null;        // Auto-extracted OTP code (4-8 digits)
+  magicLink: string | null;  // Auto-extracted verification/reset link
 }
 
 export interface WaitForLatestOptions {
@@ -152,6 +154,8 @@ export class ZeroDrop {
       subject: string;
       raw: string;
       receivedAt: string;
+      otp?: string | null;
+      magicLink?: string | null;
     }>; count: number };
 
     if (!data.emails || data.emails.length === 0) return null;
@@ -166,6 +170,8 @@ export class ZeroDrop {
       body: extractBody(latest.raw),
       rawBody: latest.raw,
       receivedAt: new Date(latest.receivedAt),
+      otp: latest.otp ?? null,
+      magicLink: latest.magicLink ?? null,
     };
   }
 

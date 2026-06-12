@@ -6,6 +6,8 @@ export interface ZeroDropEmail {
     body: string;
     rawBody: string;
     receivedAt: Date;
+    otp: string | null;
+    magicLink: string | null;
 }
 export interface WaitForLatestOptions {
     timeout?: number;

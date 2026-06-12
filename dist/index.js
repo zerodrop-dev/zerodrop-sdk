@@ -84,6 +84,7 @@ class ZeroDrop {
     // Returns null if empty
     // ============================================
     async fetchLatest(inbox) {
+        var _a, _b;
         const inboxName = inbox.split("@")[0].toLowerCase();
         const headers = {
             "Content-Type": "application/json",
@@ -109,6 +110,8 @@ class ZeroDrop {
             body: extractBody(latest.raw),
             rawBody: latest.raw,
             receivedAt: new Date(latest.receivedAt),
+            otp: (_a = latest.otp) !== null && _a !== void 0 ? _a : null,
+            magicLink: (_b = latest.magicLink) !== null && _b !== void 0 ? _b : null,
         };
     }
     // ============================================
