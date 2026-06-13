@@ -88,7 +88,10 @@ function extractBody(raw: string): string {
 // ============================================
 
 function parseEmail(raw: string): ZeroDropEmail {
-  const parsed = JSON.parse(raw) as {
+  let parsed = JSON.parse(raw);
+  // Redis REST API sometimes wraps values in an array
+  if (Array.isArray(parsed)) parsed = JSON.parse(parsed[0]);
+  const email = parsed as {
     id: string;
     from: string;
     to: string;
@@ -99,15 +102,15 @@ function parseEmail(raw: string): ZeroDropEmail {
     magicLink?: string | null;
   };
   return {
-    id: parsed.id,
-    from: parsed.from,
-    to: parsed.to,
-    subject: parsed.subject || "",
-    body: extractBody(parsed.raw),
-    rawBody: parsed.raw,
-    receivedAt: new Date(parsed.receivedAt),
-    otp: parsed.otp ?? null,
-    magicLink: parsed.magicLink ?? null,
+    id: email.id,
+    from: email.from,
+    to: email.to,
+    subject: email.subject || "",
+    body: extractBody(email.raw),
+    rawBody: email.raw,
+    receivedAt: new Date(email.receivedAt),
+    otp: email.otp ?? null,
+    magicLink: email.magicLink ?? null,
   };
 }
 

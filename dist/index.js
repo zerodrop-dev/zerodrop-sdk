@@ -56,17 +56,21 @@ function extractBody(raw) {
 // ============================================
 function parseEmail(raw) {
     var _a, _b;
-    const parsed = JSON.parse(raw);
+    let parsed = JSON.parse(raw);
+    // Redis REST API sometimes wraps values in an array
+    if (Array.isArray(parsed))
+        parsed = JSON.parse(parsed[0]);
+    const email = parsed;
     return {
-        id: parsed.id,
-        from: parsed.from,
-        to: parsed.to,
-        subject: parsed.subject || "",
-        body: extractBody(parsed.raw),
-        rawBody: parsed.raw,
-        receivedAt: new Date(parsed.receivedAt),
-        otp: (_a = parsed.otp) !== null && _a !== void 0 ? _a : null,
-        magicLink: (_b = parsed.magicLink) !== null && _b !== void 0 ? _b : null,
+        id: email.id,
+        from: email.from,
+        to: email.to,
+        subject: email.subject || "",
+        body: extractBody(email.raw),
+        rawBody: email.raw,
+        receivedAt: new Date(email.receivedAt),
+        otp: (_a = email.otp) !== null && _a !== void 0 ? _a : null,
+        magicLink: (_b = email.magicLink) !== null && _b !== void 0 ? _b : null,
     };
 }
 // ============================================
