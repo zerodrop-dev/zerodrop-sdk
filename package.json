@@ -1,6 +1,6 @@
 {
   "name": "zerodrop-client",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Instant temporary email inboxes for CI pipelines and QA testing",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
