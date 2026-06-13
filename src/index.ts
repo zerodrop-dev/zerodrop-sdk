@@ -53,6 +53,16 @@ export class ZeroDropAuthError extends Error {
   }
 }
 
+export class ZeroDropNetworkError extends Error {
+  constructor(message: string) {
+    super(
+      `ZeroDrop: Network error — ${message}. ` +
+      `Check https://status.zerodrop.dev for service status.`
+    );
+    this.name = "ZeroDropNetworkError";
+  }
+}
+
 // ============================================
 // Email body extractor
 // ============================================
@@ -102,7 +112,7 @@ export class ZeroDrop {
       console.warn(
         "[ZeroDrop] No API key provided. Running in public sandbox mode.\n" +
         "[ZeroDrop] Emails are AI-filtered and inboxes expire in 30 minutes.\n" +
-        "[ZeroDrop] For CI pipelines, upgrade to a Workspace: https://zerodrop.dev"
+        "[ZeroDrop] Free tier uses a shared domain — for production CI use Workspaces: https://zerodrop.dev"
       );
     }
   }
@@ -136,27 +146,43 @@ export class ZeroDrop {
       headers["Authorization"] = `Bearer ${this.apiKey}`;
     }
 
-    const res = await fetch(
-      `${this.baseUrl}/api/inbox/${inboxName}?source=sdk`,
-      { headers }
-    );
+    let res: Response;
+
+    try {
+      res = await fetch(
+        `${this.baseUrl}/api/inbox/${inboxName}?source=sdk`,
+        { headers }
+      );
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "fetch failed";
+      throw new ZeroDropNetworkError(message);
+    }
 
     if (res.status === 401) throw new ZeroDropAuthError();
 
     if (!res.ok) {
-      throw new Error(`ZeroDrop: API error ${res.status}`);
+      throw new ZeroDropNetworkError(`API returned ${res.status}`);
     }
 
-    const data = await res.json() as { emails: Array<{
-      id: string;
-      from: string;
-      to: string;
-      subject: string;
-      raw: string;
-      receivedAt: string;
-      otp?: string | null;
-      magicLink?: string | null;
-    }>; count: number };
+    let data: {
+      emails: Array<{
+        id: string;
+        from: string;
+        to: string;
+        subject: string;
+        raw: string;
+        receivedAt: string;
+        otp?: string | null;
+        magicLink?: string | null;
+      }>;
+      count: number;
+    };
+
+    try {
+      data = await res.json();
+    } catch {
+      throw new ZeroDropNetworkError("Failed to parse API response");
+    }
 
     if (!data.emails || data.emails.length === 0) return null;
 
@@ -178,6 +204,7 @@ export class ZeroDrop {
   // ============================================
   // waitForLatest()
   // Polls until an email arrives or timeout
+  // Network errors are retried until timeout
   // Throws ZeroDropTimeoutError on timeout
   // ============================================
 
@@ -190,8 +217,16 @@ export class ZeroDrop {
     const startTime = Date.now();
 
     while (Date.now() - startTime < timeout) {
-      const email = await this.fetchLatest(inbox);
-      if (email) return email;
+      try {
+        const email = await this.fetchLatest(inbox);
+        if (email) return email;
+      } catch (err) {
+        // Retry network errors until timeout
+        // Auth errors are re-thrown immediately
+        if (err instanceof ZeroDropAuthError) throw err;
+        // Log network errors but keep polling
+        console.warn(`[ZeroDrop] Poll error (retrying): ${(err as Error).message}`);
+      }
       await this.sleep(pollInterval);
     }
 
@@ -212,19 +247,26 @@ export class ZeroDrop {
       throw new ZeroDropAuthError();
     }
 
-    const res = await fetch(`${this.baseUrl}/api/webhooks/register`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify({ inbox, webhookUrl }),
-    });
+    let res: Response;
+
+    try {
+      res = await fetch(`${this.baseUrl}/api/webhooks/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({ inbox, webhookUrl }),
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "fetch failed";
+      throw new ZeroDropNetworkError(message);
+    }
 
     if (res.status === 401) throw new ZeroDropAuthError();
 
     if (!res.ok) {
-      throw new Error(`ZeroDrop: Failed to register webhook ${res.status}`);
+      throw new ZeroDropNetworkError(`Webhook registration failed: ${res.status}`);
     }
 
     return { registered: true };

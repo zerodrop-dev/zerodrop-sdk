@@ -22,6 +22,9 @@ export declare class ZeroDropTimeoutError extends Error {
 export declare class ZeroDropAuthError extends Error {
     constructor();
 }
+export declare class ZeroDropNetworkError extends Error {
+    constructor(message: string);
+}
 export declare class ZeroDrop {
     private apiKey;
     private baseUrl;
