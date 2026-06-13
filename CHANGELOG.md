@@ -4,6 +4,30 @@ All notable changes to `zerodrop-client` will be documented in this file.
 
 ---
 
+## [0.2.1] — 2026-06-15
+
+### Fixed
+- SSE `parseEmail` now correctly handles array-wrapped Redis values — fixes empty `id` and `subject` fields when using SSE mode
+
+---
+
+## [0.2.0] — 2026-06-15
+
+### Added
+- SSE (Server-Sent Events) support in `waitForLatest()` — emails now arrive in sub-second latency instead of polling every 2 seconds
+- SSE uses a backoff strategy: 500ms → 1000ms → 2000ms to respect Vercel Edge CPU limits
+- Automatic fallback to polling if SSE connection fails or is unavailable
+- `sse` option in `WaitForLatestOptions` — set `sse: false` to force polling mode
+
+### Fixed
+- Status page URL updated to `https://zerodrop.instatus.com` in `ZeroDropNetworkError` message (was previously pointing to an undeployed URL)
+
+### Changed
+- `waitForLatest()` now uses SSE by default — no code changes needed in existing tests
+- SDK bundle size increased from 6.8kB to 10.9kB due to SSE stream parsing logic
+
+---
+
 ## [0.1.9] — 2026-06-14
 
 ### Added
