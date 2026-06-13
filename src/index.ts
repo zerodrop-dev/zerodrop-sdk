@@ -57,7 +57,7 @@ export class ZeroDropNetworkError extends Error {
   constructor(message: string) {
     super(
       `ZeroDrop: Network error — ${message}. ` +
-      `Check https://status.zerodrop.dev for service status.`
+      `Check https://zerodrop.instatus.com for service status.`
     );
     this.name = "ZeroDropNetworkError";
   }
