@@ -26,6 +26,7 @@ export interface ZeroDropEmail {
 export interface WaitForLatestOptions {
   timeout?: number;
   pollInterval?: number;
+  sse?: boolean; // Use SSE for faster delivery (default: true)
 }
 
 export interface ZeroDropOptions {
@@ -83,6 +84,34 @@ function extractBody(raw: string): string {
 }
 
 // ============================================
+// Parse raw Redis email string into ZeroDropEmail
+// ============================================
+
+function parseEmail(raw: string): ZeroDropEmail {
+  const parsed = JSON.parse(raw) as {
+    id: string;
+    from: string;
+    to: string;
+    subject: string;
+    raw: string;
+    receivedAt: string;
+    otp?: string | null;
+    magicLink?: string | null;
+  };
+  return {
+    id: parsed.id,
+    from: parsed.from,
+    to: parsed.to,
+    subject: parsed.subject || "",
+    body: extractBody(parsed.raw),
+    rawBody: parsed.raw,
+    receivedAt: new Date(parsed.receivedAt),
+    otp: parsed.otp ?? null,
+    magicLink: parsed.magicLink ?? null,
+  };
+}
+
+// ============================================
 // Random inbox generator (zero-auth)
 // ============================================
 
@@ -125,13 +154,12 @@ export class ZeroDrop {
 
   generateInbox(): string {
     const name = generateRandomInboxName();
-    const domain = FREE_DOMAIN;
-    return `${name}@${domain}`;
+    return `${name}@${FREE_DOMAIN}`;
   }
 
   // ============================================
   // fetchLatest()
-  // Fetches current emails for an inbox
+  // Fetches current emails for an inbox via REST
   // Returns null if empty
   // ============================================
 
@@ -202,9 +230,76 @@ export class ZeroDrop {
   }
 
   // ============================================
+  // waitForLatestSSE()
+  // Uses SSE stream for sub-second email delivery
+  // Falls back to polling on error
+  // ============================================
+
+  private async waitForLatestSSE(
+    inbox: string,
+    timeoutMs: number
+  ): Promise<ZeroDropEmail | null> {
+    const inboxName = inbox.split("@")[0].toLowerCase();
+    const headers: Record<string, string> = {};
+
+    if (this.apiKey) {
+      headers["Authorization"] = `Bearer ${this.apiKey}`;
+    }
+
+    let res: Response;
+
+    try {
+      res = await fetch(
+        `${this.baseUrl}/api/inbox/${inboxName}/stream`,
+        {
+          headers,
+          signal: AbortSignal.timeout(timeoutMs + 1000),
+        }
+      );
+    } catch {
+      return null; // Fall back to polling
+    }
+
+    if (!res.ok || !res.body) return null;
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6).trim();
+            if (data === "__timeout__") return null;
+            if (data) {
+              try {
+                return parseEmail(data);
+              } catch {
+                return null;
+              }
+            }
+          }
+        }
+      }
+    } finally {
+      reader.cancel();
+    }
+
+    return null;
+  }
+
+  // ============================================
   // waitForLatest()
-  // Polls until an email arrives or timeout
-  // Network errors are retried until timeout
+  // Uses SSE by default for sub-second delivery
+  // Falls back to polling if SSE fails
   // Throws ZeroDropTimeoutError on timeout
   // ============================================
 
@@ -214,6 +309,20 @@ export class ZeroDrop {
   ): Promise<ZeroDropEmail> {
     const timeout = options.timeout ?? 10000;
     const pollInterval = options.pollInterval ?? POLL_INTERVAL;
+    const useSSE = options.sse !== false; // SSE on by default
+
+    // Try SSE first
+    if (useSSE) {
+      try {
+        const email = await this.waitForLatestSSE(inbox, timeout);
+        if (email) return email;
+      } catch {
+        // SSE failed — fall through to polling
+        console.warn("[ZeroDrop] SSE unavailable, falling back to polling");
+      }
+    }
+
+    // Polling fallback
     const startTime = Date.now();
 
     while (Date.now() - startTime < timeout) {
@@ -221,10 +330,7 @@ export class ZeroDrop {
         const email = await this.fetchLatest(inbox);
         if (email) return email;
       } catch (err) {
-        // Retry network errors until timeout
-        // Auth errors are re-thrown immediately
         if (err instanceof ZeroDropAuthError) throw err;
-        // Log network errors but keep polling
         console.warn(`[ZeroDrop] Poll error (retrying): ${(err as Error).message}`);
       }
       await this.sleep(pollInterval);

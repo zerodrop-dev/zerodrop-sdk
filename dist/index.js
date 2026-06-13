@@ -29,7 +29,7 @@ exports.ZeroDropAuthError = ZeroDropAuthError;
 class ZeroDropNetworkError extends Error {
     constructor(message) {
         super(`ZeroDrop: Network error — ${message}. ` +
-            `Check https://status.zerodrop.dev for service status.`);
+            `Check https://zerodrop.instatus.com for service status.`);
         this.name = "ZeroDropNetworkError";
     }
 }
@@ -50,6 +50,24 @@ function extractBody(raw) {
         .join("\n")
         .trim()
         .substring(0, 5000);
+}
+// ============================================
+// Parse raw Redis email string into ZeroDropEmail
+// ============================================
+function parseEmail(raw) {
+    var _a, _b;
+    const parsed = JSON.parse(raw);
+    return {
+        id: parsed.id,
+        from: parsed.from,
+        to: parsed.to,
+        subject: parsed.subject || "",
+        body: extractBody(parsed.raw),
+        rawBody: parsed.raw,
+        receivedAt: new Date(parsed.receivedAt),
+        otp: (_a = parsed.otp) !== null && _a !== void 0 ? _a : null,
+        magicLink: (_b = parsed.magicLink) !== null && _b !== void 0 ? _b : null,
+    };
 }
 // ============================================
 // Random inbox generator (zero-auth)
@@ -83,12 +101,11 @@ class ZeroDrop {
     // ============================================
     generateInbox() {
         const name = generateRandomInboxName();
-        const domain = FREE_DOMAIN;
-        return `${name}@${domain}`;
+        return `${name}@${FREE_DOMAIN}`;
     }
     // ============================================
     // fetchLatest()
-    // Fetches current emails for an inbox
+    // Fetches current emails for an inbox via REST
     // Returns null if empty
     // ============================================
     async fetchLatest(inbox) {
@@ -136,15 +153,86 @@ class ZeroDrop {
         };
     }
     // ============================================
+    // waitForLatestSSE()
+    // Uses SSE stream for sub-second email delivery
+    // Falls back to polling on error
+    // ============================================
+    async waitForLatestSSE(inbox, timeoutMs) {
+        var _a;
+        const inboxName = inbox.split("@")[0].toLowerCase();
+        const headers = {};
+        if (this.apiKey) {
+            headers["Authorization"] = `Bearer ${this.apiKey}`;
+        }
+        let res;
+        try {
+            res = await fetch(`${this.baseUrl}/api/inbox/${inboxName}/stream`, {
+                headers,
+                signal: AbortSignal.timeout(timeoutMs + 1000),
+            });
+        }
+        catch (_b) {
+            return null; // Fall back to polling
+        }
+        if (!res.ok || !res.body)
+            return null;
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done)
+                    break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = (_a = lines.pop()) !== null && _a !== void 0 ? _a : "";
+                for (const line of lines) {
+                    if (line.startsWith("data: ")) {
+                        const data = line.slice(6).trim();
+                        if (data === "__timeout__")
+                            return null;
+                        if (data) {
+                            try {
+                                return parseEmail(data);
+                            }
+                            catch (_c) {
+                                return null;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        finally {
+            reader.cancel();
+        }
+        return null;
+    }
+    // ============================================
     // waitForLatest()
-    // Polls until an email arrives or timeout
-    // Network errors are retried until timeout
+    // Uses SSE by default for sub-second delivery
+    // Falls back to polling if SSE fails
     // Throws ZeroDropTimeoutError on timeout
     // ============================================
     async waitForLatest(inbox, options = {}) {
         var _a, _b;
         const timeout = (_a = options.timeout) !== null && _a !== void 0 ? _a : 10000;
         const pollInterval = (_b = options.pollInterval) !== null && _b !== void 0 ? _b : POLL_INTERVAL;
+        const useSSE = options.sse !== false; // SSE on by default
+        // Try SSE first
+        if (useSSE) {
+            try {
+                const email = await this.waitForLatestSSE(inbox, timeout);
+                if (email)
+                    return email;
+            }
+            catch (_c) {
+                // SSE failed — fall through to polling
+                console.warn("[ZeroDrop] SSE unavailable, falling back to polling");
+            }
+        }
+        // Polling fallback
         const startTime = Date.now();
         while (Date.now() - startTime < timeout) {
             try {
@@ -153,11 +241,8 @@ class ZeroDrop {
                     return email;
             }
             catch (err) {
-                // Retry network errors until timeout
-                // Auth errors are re-thrown immediately
                 if (err instanceof ZeroDropAuthError)
                     throw err;
-                // Log network errors but keep polling
                 console.warn(`[ZeroDrop] Poll error (retrying): ${err.message}`);
             }
             await this.sleep(pollInterval);

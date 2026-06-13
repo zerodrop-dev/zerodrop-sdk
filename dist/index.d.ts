@@ -12,6 +12,7 @@ export interface ZeroDropEmail {
 export interface WaitForLatestOptions {
     timeout?: number;
     pollInterval?: number;
+    sse?: boolean;
 }
 export interface ZeroDropOptions {
     baseUrl?: string;
@@ -31,6 +32,7 @@ export declare class ZeroDrop {
     constructor(apiKey?: string, options?: ZeroDropOptions);
     generateInbox(): string;
     fetchLatest(inbox: string): Promise<ZeroDropEmail | null>;
+    private waitForLatestSSE;
     waitForLatest(inbox: string, options?: WaitForLatestOptions): Promise<ZeroDropEmail>;
     onReceived(inbox: string, webhookUrl: string): Promise<{
         registered: boolean;
