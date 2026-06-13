@@ -122,9 +122,11 @@ Returns a ready-to-use email address instantly. No network request.
 Returns the latest email or null if inbox is empty.
 
 ### `mail.waitForLatest(inbox, options?): Promise<ZeroDropEmail>`
-Polls until an email arrives. Throws `ZeroDropTimeoutError` on timeout.
+Uses SSE for sub-second email delivery. Falls back to polling automatically.
+Throws `ZeroDropTimeoutError` on timeout.
 - `options.timeout` — ms to wait (default: 10000)
-- `options.pollInterval` — ms between polls (default: 2000)
+- `options.pollInterval` — ms between polls in fallback mode (default: 2000)
+- `options.sse` — set `false` to force polling mode (default: true)
 
 ### `mail.onReceived(inbox, webhookUrl): Promise<{ registered: boolean }>`
 Registers a webhook. Requires API key (Workspace tier).
