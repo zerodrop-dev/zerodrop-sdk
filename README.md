@@ -4,6 +4,8 @@ Instant temporary email inboxes for testing auth flows, CI pipelines, and QA aut
 
 No signup. No configuration. Works in 4 lines.
 
+**[Documentation](https://docs.zerodrop.dev)** · [GitHub](https://github.com/zerodrop-dev) · [Status](https://zerodrop.instatus.com)
+
 ## Install
 
 ```bash
