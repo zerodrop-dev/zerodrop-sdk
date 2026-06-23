@@ -1,7 +1,7 @@
 {
   "name": "zerodrop-client",
   "version": "0.2.1",
-  "description": "Instant temporary email inboxes for CI pipelines and QA testing",
+  "description": "Email verification infrastructure for CI pipelines — OTPs and magic links auto-extracted. No Docker, no regex, no signup.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -21,16 +21,20 @@
     "dev": "tsc --watch"
   },
   "keywords": [
-    "email",
-    "testing",
-    "ci",
+    "email-verification",
+    "otp",
+    "magic-link",
     "playwright",
     "cypress",
-    "qa",
-    "temporary-email",
-    "sandbox"
+    "ci-cd",
+    "authentication-testing",
+    "email-testing",
+    "developer-tools",
+    "github-actions",
+    "typescript",
+    "testing-tools"
   ],
-  "author": "ZeroDrop <hello@zerodrop.dev>",
+  "author": "ZeroDrop <founder@zerodrop.dev>",
   "license": "MIT",
   "devDependencies": {
     "typescript": "^6.0.3"
