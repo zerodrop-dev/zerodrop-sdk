@@ -1,8 +1,15 @@
 # zerodrop-client
 
-Instant temporary email inboxes for testing auth flows, CI pipelines, and QA automation.
+Email verification infrastructure for CI pipelines and AI agents.
 
-No signup. No configuration. Works in 4 lines.
+Send a verification email. Catch it at the edge. Get `email.otp` and `email.magicLink` back — auto-extracted, no regex, no Docker, no signup.
+
+```javascript
+const email = await mail.waitForLatest(inbox);
+
+email.otp        // "123456" — auto-extracted
+email.magicLink  // "https://..." — no regex needed
+```
 
 **[Documentation](https://docs.zerodrop.dev)** · [GitHub](https://github.com/zerodrop-dev) · [Status](https://zerodrop.instatus.com)
 
@@ -170,7 +177,7 @@ try {
 | Inbox generation | ✓ | ✓ |
 | OTP auto-extraction | ✓ | ✓ |
 | Magic link extraction | ✓ | ✓ |
-| Email retention | 30 min | 7 days |
+| Email retention | 30 min | Extended |
 | Custom domains | ✗ | ✓ |
 | API key | ✗ | ✓ |
 | Webhooks | ✗ | ✓ |
