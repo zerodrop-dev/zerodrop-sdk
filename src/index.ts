@@ -23,10 +23,19 @@ export interface ZeroDropEmail {
   magicLink: string | null;  // Auto-extracted verification/reset link
 }
 
+export interface ZeroDropFilter {
+  from?: string;             // Exact or partial match on sender address
+  subject?: string;          // Exact or partial match on subject line
+  body?: string;             // Partial match on email body
+  hasOtp?: boolean;          // Only return emails with an extracted OTP
+  hasMagicLink?: boolean;    // Only return emails with an extracted magic link
+}
+
 export interface WaitForLatestOptions {
   timeout?: number;
   pollInterval?: number;
-  sse?: boolean; // Use SSE for faster delivery (default: true)
+  sse?: boolean;             // Use SSE for faster delivery (default: true)
+  filter?: ZeroDropFilter;   // Filter emails by sender, subject, body, etc.
 }
 
 export interface ZeroDropOptions {
@@ -81,6 +90,41 @@ function extractBody(raw: string): string {
     .join("\n")
     .trim()
     .substring(0, 5000);
+}
+
+// ============================================
+// Filter matcher
+// Returns true if email matches all filter conditions
+// ============================================
+
+function matchesFilter(email: ZeroDropEmail, filter?: ZeroDropFilter): boolean {
+  if (!filter) return true;
+
+  if (filter.from) {
+    const fromLower = email.from.toLowerCase();
+    const filterLower = filter.from.toLowerCase();
+    if (!fromLower.includes(filterLower)) return false;
+  }
+
+  if (filter.subject) {
+    const subjectLower = email.subject.toLowerCase();
+    const filterLower = filter.subject.toLowerCase();
+    if (!subjectLower.includes(filterLower)) return false;
+  }
+
+  if (filter.body) {
+    const bodyLower = email.body.toLowerCase();
+    const filterLower = filter.body.toLowerCase();
+    if (!bodyLower.includes(filterLower)) return false;
+  }
+
+  if (filter.hasOtp === true && !email.otp) return false;
+  if (filter.hasOtp === false && email.otp) return false;
+
+  if (filter.hasMagicLink === true && !email.magicLink) return false;
+  if (filter.hasMagicLink === false && email.magicLink) return false;
+
+  return true;
 }
 
 // ============================================
@@ -163,10 +207,13 @@ export class ZeroDrop {
   // ============================================
   // fetchLatest()
   // Fetches current emails for an inbox via REST
-  // Returns null if empty
+  // Returns null if empty or no match
   // ============================================
 
-  async fetchLatest(inbox: string): Promise<ZeroDropEmail | null> {
+  async fetchLatest(
+    inbox: string,
+    filter?: ZeroDropFilter
+  ): Promise<ZeroDropEmail | null> {
     const inboxName = inbox.split("@")[0].toLowerCase();
 
     const headers: Record<string, string> = {
@@ -217,19 +264,24 @@ export class ZeroDrop {
 
     if (!data.emails || data.emails.length === 0) return null;
 
-    const latest = data.emails[0];
+    // Find the first email that matches the filter
+    for (const latest of data.emails) {
+      const email: ZeroDropEmail = {
+        id: latest.id,
+        from: latest.from,
+        to: latest.to,
+        subject: latest.subject || "",
+        body: extractBody(latest.raw),
+        rawBody: latest.raw,
+        receivedAt: new Date(latest.receivedAt),
+        otp: latest.otp ?? null,
+        magicLink: latest.magicLink ?? null,
+      };
 
-    return {
-      id: latest.id,
-      from: latest.from,
-      to: latest.to,
-      subject: latest.subject || "",
-      body: extractBody(latest.raw),
-      rawBody: latest.raw,
-      receivedAt: new Date(latest.receivedAt),
-      otp: latest.otp ?? null,
-      magicLink: latest.magicLink ?? null,
-    };
+      if (matchesFilter(email, filter)) return email;
+    }
+
+    return null;
   }
 
   // ============================================
@@ -240,7 +292,8 @@ export class ZeroDrop {
 
   private async waitForLatestSSE(
     inbox: string,
-    timeoutMs: number
+    timeoutMs: number,
+    filter?: ZeroDropFilter
   ): Promise<ZeroDropEmail | null> {
     const inboxName = inbox.split("@")[0].toLowerCase();
     const headers: Record<string, string> = {};
@@ -284,7 +337,9 @@ export class ZeroDrop {
             if (data === "__timeout__") return null;
             if (data) {
               try {
-                return parseEmail(data);
+                const email = parseEmail(data);
+                if (matchesFilter(email, filter)) return email;
+                // Email arrived but didn't match filter — keep waiting
               } catch {
                 return null;
               }
@@ -304,6 +359,7 @@ export class ZeroDrop {
   // Uses SSE by default for sub-second delivery
   // Falls back to polling if SSE fails
   // Throws ZeroDropTimeoutError on timeout
+  // Supports filter by sender, subject, body, otp, magicLink
   // ============================================
 
   async waitForLatest(
@@ -313,11 +369,12 @@ export class ZeroDrop {
     const timeout = options.timeout ?? 10000;
     const pollInterval = options.pollInterval ?? POLL_INTERVAL;
     const useSSE = options.sse !== false; // SSE on by default
+    const filter = options.filter;
 
     // Try SSE first
     if (useSSE) {
       try {
-        const email = await this.waitForLatestSSE(inbox, timeout);
+        const email = await this.waitForLatestSSE(inbox, timeout, filter);
         if (email) return email;
       } catch {
         // SSE failed — fall through to polling
@@ -330,7 +387,7 @@ export class ZeroDrop {
 
     while (Date.now() - startTime < timeout) {
       try {
-        const email = await this.fetchLatest(inbox);
+        const email = await this.fetchLatest(inbox, filter);
         if (email) return email;
       } catch (err) {
         if (err instanceof ZeroDropAuthError) throw err;

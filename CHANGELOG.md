@@ -4,6 +4,33 @@ All notable changes to `zerodrop-client` will be documented in this file.
 
 ---
 
+## [0.2.2] — 2026-06-26
+
+### Added
+- Email filtering in `waitForLatest()` via `options.filter`
+- `ZeroDropFilter` interface with five filter conditions:
+  - `from` — partial match on sender address (case-insensitive)
+  - `subject` — partial match on subject line (case-insensitive)
+  - `body` — partial match on email body (case-insensitive)
+  - `hasOtp` — only match emails with an auto-extracted OTP
+  - `hasMagicLink` — only match emails with an auto-extracted magic link
+- Filtering works in both SSE and polling modes
+- `fetchLatest()` now accepts an optional `filter` parameter
+
+### Usage
+```typescript
+const email = await mail.waitForLatest(inbox, {
+  timeout: 15000,
+  filter: {
+    from: 'noreply@yourapp.com',
+    subject: 'Verify',
+    hasOtp: true
+  }
+})
+```
+
+---
+
 ## [0.2.1] — 2026-06-15
 
 ### Fixed
@@ -20,7 +47,7 @@ All notable changes to `zerodrop-client` will be documented in this file.
 - `sse` option in `WaitForLatestOptions` — set `sse: false` to force polling mode
 
 ### Fixed
-- Status page URL updated to `https://zerodrop.instatus.com` in `ZeroDropNetworkError` message (was previously pointing to an undeployed URL)
+- Status page URL updated to `https://zerodrop.instatus.com` in `ZeroDropNetworkError` message
 
 ### Changed
 - `waitForLatest()` now uses SSE by default — no code changes needed in existing tests
@@ -31,80 +58,79 @@ All notable changes to `zerodrop-client` will be documented in this file.
 ## [0.1.9] — 2026-06-14
 
 ### Added
-- `ZeroDropNetworkError` — new error class thrown when the API is unreachable or returns an unexpected response. Includes a link to `https://status.zerodrop.dev` in the error message.
-- Network resilience in `waitForLatest()` — network errors are now retried until the timeout expires rather than crashing the test runner. Auth errors are still re-thrown immediately.
-- `fetchLatest()` fetch call wrapped in try/catch — prevents unhandled `TypeError: fetch failed` from propagating to CI runners.
+- `ZeroDropNetworkError` — new error class thrown when the API is unreachable or returns an unexpected response
+- Network resilience in `waitForLatest()` — network errors are now retried until timeout
+- `fetchLatest()` fetch call wrapped in try/catch
 
 ### Changed
-- Constructor warning updated to mention shared domain risk for free tier users.
+- Constructor warning updated to mention shared domain risk for free tier users
 
 ---
 
 ## [0.1.7] — 2026-06-13
 
 ### Added
-- `otp` field on `ZeroDropEmail` — auto-extracted 4-8 digit OTP code. `null` if not detected.
-- `magicLink` field on `ZeroDropEmail` — auto-extracted verification or reset link. `null` if not detected.
-- Both fields are extracted at the Cloudflare edge before the email reaches Redis — no regex needed in tests.
+- `otp` field on `ZeroDropEmail` — auto-extracted 4-8 digit OTP code
+- `magicLink` field on `ZeroDropEmail` — auto-extracted verification or reset link
+- Both fields extracted at Cloudflare edge — no regex needed in tests
 
 ### Changed
-- `ZeroDropEmail` type updated with `otp` and `magicLink` fields.
-- README updated with OTP extraction examples and updated type block.
-- CI Pipeline Mode example updated to use `email.magicLink` instead of regex.
+- `ZeroDropEmail` type updated with `otp` and `magicLink` fields
+- README updated with OTP extraction examples
 
 ---
 
 ## [0.1.6] — 2026-06-13
 
 ### Added
-- Initial `otp` and `magicLink` field support (type definitions only).
+- Initial `otp` and `magicLink` field support (type definitions only)
 
 ---
 
 ## [0.1.5] — 2026-06-13
 
 ### Added
-- Test Isolation section to README — documents that every inbox is cryptographically isolated by default.
-- Zero cross-test contamination messaging.
+- Test Isolation section to README
+- Zero cross-test contamination messaging
 
 ---
 
 ## [0.1.4] — 2026-06-03
 
 ### Changed
-- Internal stability improvements.
-- README updates.
+- Internal stability improvements
+- README updates
 
 ---
 
 ## [0.1.3] — 2026-06-02
 
 ### Fixed
-- Minor type fixes.
+- Minor type fixes
 
 ---
 
 ## [0.1.2] — 2026-06-01
 
 ### Added
-- `waitForLatest()` timeout and pollInterval options.
-- `ZeroDropTimeoutError` for clean timeout handling in CI.
+- `waitForLatest()` timeout and pollInterval options
+- `ZeroDropTimeoutError` for clean timeout handling in CI
 
 ---
 
 ## [0.1.1] — 2026-06-01
 
 ### Added
-- `ZeroDropAuthError` for API key validation.
-- Webhook support via `onReceived()`.
+- `ZeroDropAuthError` for API key validation
+- Webhook support via `onReceived()`
 
 ---
 
 ## [0.1.0] — 2026-06-01
 
 ### Initial release
-- `generateInbox()` — local inbox generation, no network request.
-- `fetchLatest()` — poll inbox for latest email.
-- `waitForLatest()` — poll with timeout.
-- Free sandbox mode with no API key required.
-- TypeScript types included.
+- `generateInbox()` — local inbox generation, no network request
+- `fetchLatest()` — poll inbox for latest email
+- `waitForLatest()` — poll with timeout
+- Free sandbox mode with no API key required
+- TypeScript types included
