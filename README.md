@@ -233,7 +233,6 @@ try {
 | Custom domains | ✗ | ✓ |
 | API key | ✗ | ✓ |
 | Webhooks | ✗ | ✓ |
-| AI spam filter | On | Off |
 
 Get a Workspace at [zerodrop.dev](https://zerodrop.dev)
 

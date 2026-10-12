@@ -187,7 +187,7 @@ export class ZeroDrop {
     if (!apiKey) {
       console.warn(
         "[ZeroDrop] No API key provided. Running in public sandbox mode.\n" +
-        "[ZeroDrop] Emails are AI-filtered and inboxes expire in 30 minutes.\n" +
+        "[ZeroDrop] Inboxes expire in 30 minutes.\n" +
         "[ZeroDrop] Free tier uses a shared domain — for production CI use Workspaces: https://zerodrop.dev"
       );
     }
