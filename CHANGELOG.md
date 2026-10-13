@@ -4,6 +4,19 @@ All notable changes to `zerodrop-client` will be documented in this file.
 
 ---
 
+## [0.3.0] — 2026-10-14
+
+### Added
+- Free API keys from https://zerodrop.dev/keys. `new ZeroDrop()` reads `ZERODROP_API_KEY` from the environment when no key is passed.
+- With a key, `generateInbox()` starts names with your key's prefix (`k7x2-swift-x7k29ab`), and only your key can read those inboxes.
+- `mail.prefix`: your key's inbox prefix, or `null` without a key.
+
+### Changed
+- A 401 now carries the server's reason in `ZeroDropAuthError.message`, for example when an inbox belongs to another key.
+- The no-key warning points to https://zerodrop.dev/keys. A key that isn't in the `zd_xxxx_…` format gets its own warning.
+
+---
+
 ## [0.2.2] — 2026-06-26
 
 ### Added

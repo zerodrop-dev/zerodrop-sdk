@@ -46,6 +46,21 @@ console.log(email.otp);       // "123456" — auto-extracted, no regex needed
 console.log(email.magicLink); // "https://..." — auto-extracted verification link
 ```
 
+## Free API Key (Private Inboxes)
+
+Without a key, anyone who knows an inbox's name can read it. With a free key, your inboxes start with your own prefix and only your key can read them.
+
+1. Sign in with GitHub at [zerodrop.dev/keys](https://zerodrop.dev/keys) and create a key.
+2. Set it as `ZERODROP_API_KEY`. The client reads it automatically, or you can pass it to the constructor.
+
+```javascript
+const mail = new ZeroDrop();          // reads ZERODROP_API_KEY when it's set
+const inbox = mail.generateInbox();
+// → "k7x2-swift-x7k29ab@zerodrop-sandbox.online", where k7x2 is your prefix
+```
+
+Reading a `k7x2-…` inbox without your key fails with a `ZeroDropAuthError` that says why. `mail.prefix` holds your prefix if you build an address yourself.
+
 ## CI Pipeline Mode (Playwright / Cypress)
 
 ```javascript
@@ -147,9 +162,8 @@ const results = await Promise.all(
 );
 ```
 
-For CI pipelines with 20+ parallel tests, use a Workspace
-API key — dedicated rate limit bucket, not shared with
-the public pool.
+Polls are rate-limited per IP address (20 requests per
+10 seconds), so stagger large parallel runs as above.
 
 ## Webhook Mode (Staging Servers)
 
@@ -163,11 +177,14 @@ await mail.onReceived('qa-test@yourcompany.com', 'https://your-server.com/webhoo
 ## API
 
 ### `new ZeroDrop(apiKey?, options?)`
-- `apiKey` — optional. Omit for free sandbox mode.
+- `apiKey` — optional. Defaults to the `ZERODROP_API_KEY` environment variable. Without a key, inboxes are public to anyone who knows the name.
 - `options.baseUrl` — override the API base URL.
 
 ### `mail.generateInbox(): string`
-Returns a ready-to-use email address instantly. No network request.
+Returns a ready-to-use email address instantly. No network request. With a key, the name starts with your prefix.
+
+### `mail.prefix: string | null`
+Your key's inbox prefix (`"k7x2"`), or `null` without a key.
 
 ### `mail.fetchLatest(inbox, filter?): Promise<ZeroDropEmail | null>`
 Returns the latest email matching the filter, or null if inbox is empty.
@@ -231,7 +248,7 @@ try {
 | Email filtering | ✓ | ✓ |
 | Email retention | 30 min | Extended |
 | Custom domains | ✗ | ✓ |
-| API key | ✗ | ✓ |
+| API key | ✓ free at [zerodrop.dev/keys](https://zerodrop.dev/keys) | ✓ |
 | Webhooks | ✗ | ✓ |
 
 Get a Workspace at [zerodrop.dev](https://zerodrop.dev)

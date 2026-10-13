@@ -7,6 +7,10 @@ const BASE_URL = "https://zerodrop.dev";
 const FREE_DOMAIN = "zerodrop-sandbox.online";
 const POLL_INTERVAL = 2000;
 
+// A free key from https://zerodrop.dev/keys: zd_<prefix>_<32 letters/digits>.
+// Inboxes named <prefix>-... can be read only with that key.
+const KEY_FORMAT = /^zd_([a-z0-9]{4})_[A-Za-z0-9]{32}$/;
+
 // ============================================
 // Types
 // ============================================
@@ -57,8 +61,8 @@ export class ZeroDropTimeoutError extends Error {
 }
 
 export class ZeroDropAuthError extends Error {
-  constructor() {
-    super("ZeroDrop: Invalid or missing API key.");
+  constructor(detail?: string) {
+    super(`ZeroDrop: ${detail || "Invalid or missing API key."}`);
     this.name = "ZeroDropAuthError";
   }
 }
@@ -159,6 +163,38 @@ function parseEmail(raw: string): ZeroDropEmail {
 }
 
 // ============================================
+// API key helpers
+// ============================================
+
+// ZERODROP_API_KEY from the environment, where there is one (Node, Bun,
+// Deno with env access). Browsers have none.
+function envApiKey(): string | null {
+  try {
+    const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+    const key = env?.ZERODROP_API_KEY?.trim();
+    return key ? key : null;
+  } catch {
+    return null;
+  }
+}
+
+// The inbox prefix a key carries: "zd_k7x2_..." -> "k7x2".
+function keyPrefix(apiKey: string | null): string | null {
+  const m = apiKey ? KEY_FORMAT.exec(apiKey) : null;
+  return m ? m[1] : null;
+}
+
+// The server explains a 401 in its JSON body; pass that on.
+async function authError(res: Response): Promise<ZeroDropAuthError> {
+  try {
+    const data = (await res.json()) as { error?: unknown };
+    return new ZeroDropAuthError(typeof data?.error === "string" ? data.error : undefined);
+  } catch {
+    return new ZeroDropAuthError();
+  }
+}
+
+// ============================================
 // Random inbox generator (zero-auth)
 // ============================================
 
@@ -180,15 +216,24 @@ export class ZeroDrop {
   private apiKey: string | null;
   private baseUrl: string;
 
+  /** The inbox prefix your key carries ("k7x2"), or null without a key. */
+  readonly prefix: string | null;
+
   constructor(apiKey?: string, options: ZeroDropOptions = {}) {
-    this.apiKey = apiKey || null;
+    this.apiKey = apiKey || envApiKey();
+    this.prefix = keyPrefix(this.apiKey);
     this.baseUrl = options.baseUrl || BASE_URL;
 
-    if (!apiKey) {
+    if (!this.apiKey) {
       console.warn(
-        "[ZeroDrop] No API key provided. Running in public sandbox mode.\n" +
-        "[ZeroDrop] Inboxes expire in 30 minutes.\n" +
-        "[ZeroDrop] Free tier uses a shared domain — for production CI use Workspaces: https://zerodrop.dev"
+        "[ZeroDrop] No API key: anyone who knows an inbox's name can read it.\n" +
+        "[ZeroDrop] Free key for private inboxes: https://zerodrop.dev/keys (set ZERODROP_API_KEY).\n" +
+        "[ZeroDrop] Inboxes expire in 30 minutes. Free tier uses a shared domain — for production CI use Workspaces: https://zerodrop.dev"
+      );
+    } else if (!this.prefix) {
+      console.warn(
+        "[ZeroDrop] That API key isn't in the zd_xxxx_... format from https://zerodrop.dev/keys, " +
+        "so generated inboxes get no prefix and stay public."
       );
     }
   }
@@ -196,12 +241,13 @@ export class ZeroDrop {
   // ============================================
   // generateInbox()
   // Returns a ready-to-use email address instantly
-  // No network request needed
+  // No network request needed. With a key, the name
+  // starts with your prefix: k7x2-swift-x7k29ab
   // ============================================
 
   generateInbox(): string {
     const name = generateRandomInboxName();
-    return `${name}@${FREE_DOMAIN}`;
+    return `${this.prefix ? `${this.prefix}-` : ""}${name}@${FREE_DOMAIN}`;
   }
 
   // ============================================
@@ -236,7 +282,7 @@ export class ZeroDrop {
       throw new ZeroDropNetworkError(message);
     }
 
-    if (res.status === 401) throw new ZeroDropAuthError();
+    if (res.status === 401) throw await authError(res);
 
     if (!res.ok) {
       throw new ZeroDropNetworkError(`API returned ${res.status}`);
