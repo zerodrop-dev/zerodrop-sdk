@@ -4,6 +4,14 @@ All notable changes to `zerodrop-client` will be documented in this file.
 
 ---
 
+## [0.3.1] — 2026-10-23
+
+### Fixed
+- A key with a character that can't be sent in an HTTP header, such as a line break, could appear in full in an error message, because the runtime's header check quotes the value. `new ZeroDrop()` now refuses such a key with a `TypeError` whose message never includes the key.
+- A key passed to the constructor is trimmed like `ZERODROP_API_KEY`, and a blank one falls back to the environment.
+
+---
+
 ## [0.3.0] — 2026-10-14
 
 ### Added

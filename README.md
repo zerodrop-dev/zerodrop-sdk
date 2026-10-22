@@ -59,7 +59,7 @@ const inbox = mail.generateInbox();
 // → "k7x2-swift-x7k29ab@zerodrop-sandbox.online", where k7x2 is your prefix
 ```
 
-Reading a `k7x2-…` inbox without your key fails with a `ZeroDropAuthError` that says why. `mail.prefix` holds your prefix if you build an address yourself.
+Reading a `k7x2-…` inbox without your key fails with a `ZeroDropAuthError` that says why. `mail.prefix` holds your prefix if you build an address yourself. A key holding a character that can't be sent in an HTTP header (a line break, say) makes `new ZeroDrop()` throw a `TypeError`; the message never includes the key.
 
 ## CI Pipeline Mode (Playwright / Cypress)
 

@@ -11,6 +11,11 @@ const POLL_INTERVAL = 2000;
 // Inboxes named <prefix>-... can be read only with that key.
 const KEY_FORMAT = /^zd_([a-z0-9]{4})_[A-Za-z0-9]{32}$/;
 
+// A key goes into an HTTP header, so after trimming it may hold only visible
+// ASCII. Anything else is refused without echoing the key: the runtime's own
+// header check would quote the whole value in its error message.
+const SENDABLE_KEY = /^[\x21-\x7e]+$/;
+
 // ============================================
 // Types
 // ============================================
@@ -220,7 +225,15 @@ export class ZeroDrop {
   readonly prefix: string | null;
 
   constructor(apiKey?: string, options: ZeroDropOptions = {}) {
-    this.apiKey = apiKey || envApiKey();
+    // Trimmed like ZERODROP_API_KEY (trim also drops no-break spaces and
+    // byte-order marks); a blank key falls back to the environment.
+    this.apiKey = apiKey?.trim() || envApiKey();
+    if (this.apiKey && !SENDABLE_KEY.test(this.apiKey)) {
+      throw new TypeError(
+        "ZeroDrop: the API key contains a character that can't be sent in an HTTP header, " +
+        "such as a line break. Copy it again from https://zerodrop.dev/keys."
+      );
+    }
     this.prefix = keyPrefix(this.apiKey);
     this.baseUrl = options.baseUrl || BASE_URL;
 
