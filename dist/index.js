@@ -4,7 +4,7 @@
 // Instant temporary email inboxes for CI/CD
 // ============================================
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ZeroDrop = exports.ZeroDropNetworkError = exports.ZeroDropAuthError = exports.ZeroDropTimeoutError = void 0;
+exports.ZeroDrop = exports.ZeroDropHeldError = exports.ZeroDropNetworkError = exports.ZeroDropAuthError = exports.ZeroDropTimeoutError = void 0;
 const BASE_URL = "https://zerodrop.dev";
 const FREE_DOMAIN = "zerodrop-sandbox.online";
 const POLL_INTERVAL = 2000;
@@ -41,6 +41,19 @@ class ZeroDropNetworkError extends Error {
     }
 }
 exports.ZeroDropNetworkError = ZeroDropNetworkError;
+const HELD_DEFAULT = "ZeroDrop held the email sent to this inbox: without an API key, one sender can reach only a few " +
+    "different inboxes a day. Get a free key at https://zerodrop.dev/keys and set ZERODROP_API_KEY.";
+// Without an API key, one sender can reach only a few different inboxes a
+// day. Past that, ZeroDrop holds the email and leaves a notice in the inbox
+// instead; fetchLatest() and waitForLatest() then throw this, with the
+// server's reason, rather than returning nothing until the timeout.
+class ZeroDropHeldError extends Error {
+    constructor(reason) {
+        super(reason || HELD_DEFAULT);
+        this.name = "ZeroDropHeldError";
+    }
+}
+exports.ZeroDropHeldError = ZeroDropHeldError;
 // ============================================
 // Email body extractor
 // ============================================
@@ -93,27 +106,33 @@ function matchesFilter(email, filter) {
         return false;
     return true;
 }
-// ============================================
-// Parse raw Redis email string into ZeroDropEmail
-// ============================================
-function parseEmail(raw) {
+function isNotice(item) {
+    return item.held === true;
+}
+function heldError(notice) {
+    return new ZeroDropHeldError(typeof notice.reason === "string" ? notice.reason.trim() : undefined);
+}
+function toEmail(item) {
     var _a, _b;
+    return {
+        id: item.id,
+        from: item.from,
+        to: item.to,
+        subject: item.subject || "",
+        body: extractBody(item.raw),
+        rawBody: item.raw,
+        receivedAt: new Date(item.receivedAt),
+        otp: (_a = item.otp) !== null && _a !== void 0 ? _a : null,
+        magicLink: (_b = item.magicLink) !== null && _b !== void 0 ? _b : null,
+    };
+}
+// Parse a raw Redis email string (as the SSE stream sends it)
+function parseItem(raw) {
     let parsed = JSON.parse(raw);
     // Redis REST API sometimes wraps values in an array
     if (Array.isArray(parsed))
         parsed = JSON.parse(parsed[0]);
-    const email = parsed;
-    return {
-        id: email.id,
-        from: email.from,
-        to: email.to,
-        subject: email.subject || "",
-        body: extractBody(email.raw),
-        rawBody: email.raw,
-        receivedAt: new Date(email.receivedAt),
-        otp: (_a = email.otp) !== null && _a !== void 0 ? _a : null,
-        magicLink: (_b = email.magicLink) !== null && _b !== void 0 ? _b : null,
-    };
+    return parsed;
 }
 // ============================================
 // API key helpers
@@ -149,13 +168,30 @@ async function authError(res) {
 // ============================================
 // Random inbox generator (zero-auth)
 // ============================================
+// Without a key, an inbox's name is its only access control, so names come
+// from a cryptographic random source where the runtime has one (Node 19+,
+// browsers, Deno, Bun). Older runtimes fall back to Math.random.
+function randomInt(max) {
+    const webCrypto = globalThis.crypto;
+    if (typeof (webCrypto === null || webCrypto === void 0 ? void 0 : webCrypto.getRandomValues) !== "function")
+        return Math.floor(Math.random() * max);
+    const limit = 256 - (256 % max); // bytes at or above this are discarded, so no value is favoured
+    const byte = new Uint8Array(1);
+    do
+        webCrypto.getRandomValues(byte);
+    while (byte[0] >= limit);
+    return byte[0] % max;
+}
 function generateRandomInboxName() {
     const adjectives = [
         "swift", "dark", "cold", "null", "void",
         "zero", "dead", "raw", "base", "core"
     ];
-    const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-    const id = Math.random().toString(36).substring(2, 9);
+    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+    const adj = adjectives[randomInt(adjectives.length)];
+    let id = "";
+    for (let i = 0; i < 7; i++)
+        id += chars[randomInt(chars.length)];
     return `${adj}-${id}`;
 }
 // ============================================
@@ -173,8 +209,8 @@ class ZeroDrop {
         this.prefix = keyPrefix(this.apiKey);
         this.baseUrl = options.baseUrl || BASE_URL;
         if (!this.apiKey) {
-            console.warn("[ZeroDrop] No API key: anyone who knows an inbox's name can read it.\n" +
-                "[ZeroDrop] Free key for private inboxes: https://zerodrop.dev/keys (set ZERODROP_API_KEY).\n" +
+            console.warn("[ZeroDrop] No API key: anyone who knows an inbox's name can read it, and one sender can reach only a few different inboxes a day.\n" +
+                "[ZeroDrop] Free key for private, unlimited inboxes: https://zerodrop.dev/keys (set ZERODROP_API_KEY).\n" +
                 "[ZeroDrop] Inboxes expire in 30 minutes. Free tier uses a shared domain — for production CI use Workspaces: https://zerodrop.dev");
         }
         else if (!this.prefix) {
@@ -195,10 +231,11 @@ class ZeroDrop {
     // ============================================
     // fetchLatest()
     // Fetches current emails for an inbox via REST
-    // Returns null if empty or no match
+    // Returns null if empty or no match; throws
+    // ZeroDropHeldError if the inbox has only a
+    // notice that ZeroDrop held the email
     // ============================================
     async fetchLatest(inbox, filter) {
-        var _a, _b;
         const inboxName = inbox.split("@")[0].toLowerCase();
         const headers = {
             "Content-Type": "application/json",
@@ -223,27 +260,25 @@ class ZeroDrop {
         try {
             data = await res.json();
         }
-        catch (_c) {
+        catch (_a) {
             throw new ZeroDropNetworkError("Failed to parse API response");
         }
         if (!data.emails || data.emails.length === 0)
             return null;
-        // Find the first email that matches the filter
+        // Find the first email that matches the filter. A notice of held mail is
+        // never returned as an email; if nothing matches, it explains why.
+        let notice = null;
         for (const latest of data.emails) {
-            const email = {
-                id: latest.id,
-                from: latest.from,
-                to: latest.to,
-                subject: latest.subject || "",
-                body: extractBody(latest.raw),
-                rawBody: latest.raw,
-                receivedAt: new Date(latest.receivedAt),
-                otp: (_a = latest.otp) !== null && _a !== void 0 ? _a : null,
-                magicLink: (_b = latest.magicLink) !== null && _b !== void 0 ? _b : null,
-            };
+            if (isNotice(latest)) {
+                notice !== null && notice !== void 0 ? notice : (notice = latest);
+                continue;
+            }
+            const email = toEmail(latest);
             if (matchesFilter(email, filter))
                 return email;
         }
+        if (notice)
+            throw heldError(notice);
         return null;
     }
     // ============================================
@@ -288,7 +323,12 @@ class ZeroDrop {
                             return null;
                         if (data) {
                             try {
-                                const email = parseEmail(data);
+                                const item = parseItem(data);
+                                // A notice of held mail: polling sees every item, and throws
+                                // ZeroDropHeldError unless an email matches
+                                if (isNotice(item))
+                                    return null;
+                                const email = toEmail(item);
                                 if (matchesFilter(email, filter))
                                     return email;
                                 // Email arrived but didn't match filter — keep waiting
@@ -310,7 +350,8 @@ class ZeroDrop {
     // waitForLatest()
     // Uses SSE by default for sub-second delivery
     // Falls back to polling if SSE fails
-    // Throws ZeroDropTimeoutError on timeout
+    // Throws ZeroDropTimeoutError on timeout, and
+    // ZeroDropHeldError at once if ZeroDrop held the email
     // Supports filter by sender, subject, body, otp, magicLink
     // ============================================
     async waitForLatest(inbox, options = {}) {
@@ -340,7 +381,7 @@ class ZeroDrop {
                     return email;
             }
             catch (err) {
-                if (err instanceof ZeroDropAuthError)
+                if (err instanceof ZeroDropAuthError || err instanceof ZeroDropHeldError)
                     throw err;
                 console.warn(`[ZeroDrop] Poll error (retrying): ${err.message}`);
             }
@@ -350,34 +391,13 @@ class ZeroDrop {
     }
     // ============================================
     // onReceived()
-    // Registers a webhook for a workspace inbox
-    // Requires API key
+    // ZeroDrop has no webhooks: the endpoint this
+    // called was never built. Kept so existing code
+    // compiles; it rejects at once.
     // ============================================
-    async onReceived(inbox, webhookUrl) {
-        if (!this.apiKey) {
-            throw new ZeroDropAuthError();
-        }
-        let res;
-        try {
-            res = await fetch(`${this.baseUrl}/api/webhooks/register`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${this.apiKey}`,
-                },
-                body: JSON.stringify({ inbox, webhookUrl }),
-            });
-        }
-        catch (err) {
-            const message = err instanceof Error ? err.message : "fetch failed";
-            throw new ZeroDropNetworkError(message);
-        }
-        if (res.status === 401)
-            throw new ZeroDropAuthError();
-        if (!res.ok) {
-            throw new ZeroDropNetworkError(`Webhook registration failed: ${res.status}`);
-        }
-        return { registered: true };
+    /** @deprecated ZeroDrop has no webhooks. Use waitForLatest(). */
+    async onReceived(_inbox, _webhookUrl) {
+        throw new Error("ZeroDrop: webhooks aren't available. Use waitForLatest() to wait for an email.");
     }
     // ============================================
     // Private helpers

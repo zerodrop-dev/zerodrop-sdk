@@ -34,6 +34,9 @@ export declare class ZeroDropAuthError extends Error {
 export declare class ZeroDropNetworkError extends Error {
     constructor(message: string);
 }
+export declare class ZeroDropHeldError extends Error {
+    constructor(reason?: string);
+}
 export declare class ZeroDrop {
     private apiKey;
     private baseUrl;
@@ -44,7 +47,8 @@ export declare class ZeroDrop {
     fetchLatest(inbox: string, filter?: ZeroDropFilter): Promise<ZeroDropEmail | null>;
     private waitForLatestSSE;
     waitForLatest(inbox: string, options?: WaitForLatestOptions): Promise<ZeroDropEmail>;
-    onReceived(inbox: string, webhookUrl: string): Promise<{
+    /** @deprecated ZeroDrop has no webhooks. Use waitForLatest(). */
+    onReceived(_inbox: string, _webhookUrl: string): Promise<{
         registered: boolean;
     }>;
     private sleep;

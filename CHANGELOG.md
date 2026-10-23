@@ -4,6 +4,18 @@ All notable changes to `zerodrop-client` will be documented in this file.
 
 ---
 
+## [0.4.0] — 2026-10-23
+
+### Added
+- `ZeroDropHeldError`. Without an API key, one sender can reach only a few different inboxes a day; past that, ZeroDrop holds the email and leaves a notice in the inbox instead. `fetchLatest()` and `waitForLatest()` now throw `ZeroDropHeldError` with the server's reason, and `waitForLatest()` stops at once instead of waiting until the timeout. A notice is never returned as an email.
+
+### Changed
+- Generated inbox names come from `crypto.getRandomValues()` where the runtime has it (Node 19+, browsers, Deno, Bun) instead of `Math.random()`. Without a key, the name is the inbox's only access control.
+- `onReceived()` is deprecated and rejects at once. ZeroDrop has no webhooks: the endpoint it called was never built.
+- The no-key warning mentions the daily limit.
+
+---
+
 ## [0.3.1] — 2026-10-23
 
 ### Fixed

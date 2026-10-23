@@ -1,7 +1,7 @@
 {
   "name": "zerodrop-client",
-  "version": "0.3.1",
-  "description": "Email verification infrastructure for CI pipelines — OTPs and magic links auto-extracted. No Docker, no regex, no signup.",
+  "version": "0.4.0",
+  "description": "Email verification infrastructure for CI pipelines — OTPs and magic links auto-extracted. No Docker, no regex, no signup to try.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
